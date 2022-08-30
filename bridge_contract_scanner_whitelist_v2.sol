@@ -10,79 +10,97 @@ contract BridgeContractScanner is Ownable {
         address parentBridgeAddr;
         address childBridgeAddr;
         string endPointURL;
-        uint chainID;
+        string chainSymbol;
+        address[] parentBridgeRegisteredTokenList;
+	    address[] childBridgeRegisteredTokenList;
     }
 
-    mapping(string => chainInfo) private _chainInfoMap;
+    // change : key is chain id, and value is chainInfo
+    mapping(uint => chainInfo) private _chainInfoMap;
+    mapping(uint => bool) private _chainIDMap;
+    mapping(string => uint) private _chainSymbolIDMap;
+    uint[] private _chainIDList;
+    string[] chainSymbolList;
 
-    //since we can't set struct with empty mapping, let's seperate them.
-    mapping(address => address[]) private _ParentBridgeRegisteredTokenList;
-    mapping(address => address[]) private _ChildBridgeRegisteredTokenList;
-
-    mapping(uint => bool) private _chainIDList;
-
-    // _accessmap example - AAA : 0x96DDf6268439475B518D29ee0B925a4428849a85
-    // only address 0x96DDf6268439475B518D29ee0B925a4428849a85 can set bridge address of AAA
-    mapping(string => address) private _accessMap;
+    // _accessmap example - 5678 : 0x96DDf6268439475B518D29ee0B925a4428849a85
+    // only address 0x96DDf6268439475B518D29ee0B925a4428849a85 can set chaininfo of chainID 5678 chain
+    mapping(uint => address) private _accessMap;
 
     // MODIFIERS
     // only allowed sender can pass this modifier
-    modifier onlyAllowed(string memory symbol) {
-        require (_accessMap[symbol] == msg.sender, "caller is not admin of following ServiceChain");
+    modifier onlyAllowed(uint _chainID) {
+        require (_accessMap[_chainID] == msg.sender, "caller is not admin of following ServiceChain");
         _;
     }
     // chainID cannot be overlapped 
     modifier checkChainID(uint id) {
-        require (_chainIDList[id] == false, "Following chainID is already registered");
+        require (_chainIDMap[id]==false , "Following chainID is already registered");
         _;
     }
 
     // adding address to accessmap can be only conducted by contract owner.
-    function addAccessMap(string memory symbol, address admin) public onlyOwner {
-        _accessMap[symbol] = admin;
+    function addAccessMap(uint _chainID, address admin) public onlyOwner checkChainID(_chainID){
+        _accessMap[_chainID] = admin;
+        _chainIDMap[_chainID] = true;
     }
 
-    function setChainInfoMap(string memory _symbol, address _parentBridgeAddr, address _childBridgeAddr, string memory _endPointURL, uint _chainID) 
-    public onlyAllowed(_symbol) checkChainID(_chainID) {
-        _chainInfoMap[_symbol] = chainInfo(
+    function setChainInfoMap(uint _chainID, address _parentBridgeAddr, address _childBridgeAddr, string memory _endPointURL, string memory _symbol) 
+    public onlyAllowed(_chainID){
+        address[] memory x;
+        address[] memory y;
+
+        _chainInfoMap[_chainID] = chainInfo(
             {
                 parentBridgeAddr : _parentBridgeAddr,
                 childBridgeAddr : _childBridgeAddr,
                 endPointURL : _endPointURL,
-                chainID : _chainID
+                chainSymbol : _symbol,
+                parentBridgeRegisteredTokenList : x,
+                childBridgeRegisteredTokenList : y
             }
         );
+        chainSymbolList.push(_symbol);
+        _chainSymbolIDMap[_symbol] = _chainID;
+        _chainIDList.push(_chainID);
+        
     }
 
-    function getParentBridgeAddress(string memory symbol) public view returns (address) {
-        return _chainInfoMap[symbol].parentBridgeAddr;
+    function getParentBridgeAddress(uint _chainID) public view returns (address) {
+        return _chainInfoMap[_chainID].parentBridgeAddr;
     }
 
-    function getChildBridgeAddress(string memory symbol) public view returns (address) {
-        return _chainInfoMap[symbol].childBridgeAddr;
+    function getChildBridgeAddress(uint _chainID) public view returns (address) {
+        return _chainInfoMap[_chainID].childBridgeAddr;
     }
 
-    function getEndPointURL(string memory symbol) public view returns (string memory) {
-        return _chainInfoMap[symbol].endPointURL;
+    function getEndPointURL(uint _chainID) public view returns (string memory) {
+        return _chainInfoMap[_chainID].endPointURL;
     }
 
-    function registerToken(string memory symbol, address parentTokenAddress, address childTokenAddress) public onlyAllowed(symbol) {
-        address _parentBridgeAddr = _chainInfoMap[symbol].parentBridgeAddr;
-        address _childBridgeAddr = _chainInfoMap[symbol].childBridgeAddr;
-        _ParentBridgeRegisteredTokenList[_parentBridgeAddr].push(parentTokenAddress);
-        _ChildBridgeRegisteredTokenList[_childBridgeAddr].push(childTokenAddress);
+    function getChainList() public view returns (string[] memory){
+        return chainSymbolList;
     }
 
-    function getParentBridgeTokenList(address _parentBridgeAddr) public view returns (address[] memory) {
-        return _ParentBridgeRegisteredTokenList[_parentBridgeAddr];
+    function getChainIdBySymbol(string memory _symbol) public view returns (uint) {
+        return _chainSymbolIDMap[_symbol];
     }
 
-    function getChildBridgeTokenList(address _childBridgeAddr) public view returns (address[] memory) {
-        return _ChildBridgeRegisteredTokenList[_childBridgeAddr];
+    function getParentBridgeRegisteredTokenList(uint _chainID) public view returns (address[] memory) {
+        return _chainInfoMap[_chainID].parentBridgeRegisteredTokenList;
     }
 
-    function deleteBridgeAddresses(string memory symbol) public onlyAllowed(symbol) {
-        delete _chainInfoMap[symbol];
+    function getChildBridgeRegisteredTokenList(uint _chainID) public view returns (address[] memory) {
+        return _chainInfoMap[_chainID].childBridgeRegisteredTokenList;
+    }
+
+    function registerToken(uint _chainID, address parentTokenAddress, address childTokenAddress) public onlyAllowed(_chainID) {
+        _chainInfoMap[_chainID].parentBridgeRegisteredTokenList.push(parentTokenAddress);
+        _chainInfoMap[_chainID].childBridgeRegisteredTokenList.push(childTokenAddress);
+    }
+
+
+    function deleteBridgeAddresses(uint _chainID) public onlyAllowed(_chainID) {
+        delete _chainInfoMap[_chainID];
     }
 
 }
